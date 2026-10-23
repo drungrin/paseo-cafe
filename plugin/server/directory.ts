@@ -16,6 +16,7 @@ import type {
 } from "../shared/directory"
 import {
   DEFAULT_REGISTRY_URL,
+  DETAIL_README_MAX,
   type DirectoryEntry,
   directoryCategorySchema,
   directoryEntrySchema,
@@ -189,6 +190,11 @@ const registryIndexSchema = z.object({
 const registryDetailSchema = z.object({
   id: z.string().regex(REGISTRY_ID_PATTERN),
   readme: z.string(),
+  // Each replaces the English overview whole; a malformed map just means English.
+  overviewTranslations: z
+    .record(z.string(), z.string())
+    .optional()
+    .catch(undefined),
 })
 
 type RegistryCacheEntry = {
@@ -476,7 +482,16 @@ export async function getDirectoryDetail(
   if (detail.id !== input.id) {
     throw new Error(`Registry returned ${detail.id} for ${input.id}`)
   }
-  return { readme: detail.readme }
+  // A translation over the RPC limit would fail the whole response: use English.
+  const translated = input.locale
+    ? detail.overviewTranslations?.[input.locale]
+    : undefined
+  return {
+    readme:
+      translated && translated.length <= DETAIL_README_MAX
+        ? translated
+        : detail.readme,
+  }
 }
 
 export async function listDirectoryUpdateStatus(
